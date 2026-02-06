@@ -36,9 +36,7 @@ var _ = Describe("Shoot Rsyslog Relp Extension Tests", func() {
 		Expect(createNetworkPolicyForEchoServer(ctx, f.ShootFramework.SeedClient, f.ShootFramework.ShootSeedNamespace())).To(Succeed())
 
 		By("Install rsyslog-relp unit on Shoot nodes")
-		common.ForEachNode(ctx, f.ShootFramework.ShootClient, func(ctx context.Context, node *corev1.Node) {
-			installRsyslogRelp(ctx, f.Logger, f.ShootFramework.ShootClient, node.Name)
-		})
+		deployRsyslogRelpInstallerDaemonSet(ctx, f.ShootFramework.ShootClient)
 
 		By("Enable the shoot-rsyslog-relp extension")
 		ctx, cancel = context.WithTimeout(parentCtx, 15*time.Minute)
@@ -70,11 +68,6 @@ var _ = Describe("Shoot Rsyslog Relp Extension Tests", func() {
 
 		_, cancel = context.WithTimeout(parentCtx, 2*time.Minute)
 		DeferCleanup(cancel)
-
-		By("Install rsyslog-relp unit on Shoot nodes")
-		common.ForEachNode(ctx, f.ShootFramework.ShootClient, func(ctx context.Context, node *corev1.Node) {
-			installRsyslogRelp(ctx, f.Logger, f.ShootFramework.ShootClient, node.Name)
-		})
 
 		By("Verify that shoot-rsyslog-relp works after wake up")
 		ctx, cancel = context.WithTimeout(parentCtx, 5*time.Minute)

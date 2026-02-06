@@ -10,14 +10,16 @@ import (
 
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/test/framework"
-	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/gardener/gardener-extension-shoot-rsyslog-relp/test/common"
+	"github.com/gardener/gardener-extension-shoot-rsyslog-relp/imagevector"
 )
 
 var (
@@ -40,11 +42,57 @@ func defaultShootCreationFramework() *framework.ShootCreationFramework {
 	})
 }
 
-func installRsyslogRelp(ctx context.Context, log logr.Logger, c kubernetes.Interface, nodeName string) {
-	rootPodExecutor := framework.NewRootPodExecutor(log, c, &nodeName, "kube-system")
-	_, err := common.ExecCommand(ctx, log, rootPodExecutor, "sh", "-c", "apt-get update && apt-get install -y rsyslog-relp")
-	ExpectWithOffset(1, err).NotTo(HaveOccurred())
-	Expect(rootPodExecutor.Clean(ctx)).To(Succeed())
+func deployRsyslogRelpInstallerDaemonSet(ctx context.Context, c kubernetes.Interface) {
+	alpineImage, err := imagevector.ImageVector().FindImage(imagevector.ImageNameAlpine)
+	Expect(err).ToNot(HaveOccurred())
+
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rsyslog-relp-installer",
+			Namespace: "kube-system",
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "rsyslog-relp",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": "rsyslog-relp",
+					},
+				},
+				Spec: corev1.PodSpec{
+					HostPID:     true,
+					HostNetwork: true,
+					Containers: []corev1.Container{{
+						Name:    "rsyslog-relp",
+						Image:   alpineImage.String(),
+						Command: []string{"/bin/sh", "-c"},
+						Args:    []string{"chroot /hostroot apt-get update && chroot /hostroot apt-get install -y rsyslog-relp && sleep infinity"},
+						SecurityContext: &corev1.SecurityContext{
+							Privileged: ptr.To(true),
+						},
+						VolumeMounts: []corev1.VolumeMount{{
+							Name:      "root-volume",
+							MountPath: "/hostroot",
+						}},
+					}},
+					Volumes: []corev1.Volume{{
+						Name: "root-volume",
+						VolumeSource: corev1.VolumeSource{
+							HostPath: &corev1.HostPathVolumeSource{
+								Path: "/",
+							},
+						},
+					}},
+				},
+			},
+		},
+	}
+
+	Expect(c.Client().Create(ctx, ds)).To(Succeed())
 }
 
 func createNetworkPolicyForEchoServer(ctx context.Context, c kubernetes.Interface, namespace string) error {
