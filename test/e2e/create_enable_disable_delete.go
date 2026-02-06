@@ -59,6 +59,8 @@ var _ = Describe("Shoot Rsyslog Relp Extension Tests", func() {
 			})
 
 			By("Disable the shoot-rsyslog-relp extension")
+			ctx, cancel = context.WithTimeout(parentCtx, 10*time.Minute)
+			DeferCleanup(cancel)
 			Expect(f.UpdateShoot(ctx, f.Shoot, func(shoot *gardencorev1beta1.Shoot) error {
 				common.RemoveRsyslogRelpExtension(shoot)
 				return nil
