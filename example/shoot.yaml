@@ -58,7 +58,7 @@ spec:
   seedName: local
   cloudProfile:
     name: local
-  secretBindingName: local # dummy, doesn't contain any credentials
+  credentialsBindingName: local # dummy, doesn't contain any credentials
   region: local
   networking:
     type: calico
@@ -69,7 +69,7 @@ spec:
       kind: NetworkConfig
       backend: none
       typha:
-        enabled: false
+        enabled: true
   provider:
     type: local
     workers:
